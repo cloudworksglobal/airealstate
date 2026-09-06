@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sitio Web Inmobiliaria</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 20px; }
+    
+    /* Estilos del Botón Flotante */
+    #chat-widget-button {
+      position: fixed; bottom: 20px; right: 20px;
+      background: #007bff; color: white; border: none;
+      border-radius: 50%; width: 60px; height: 60px;
+      font-size: 24px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    
+    /* Estilos de la Ventana del Chat */
+    #chat-widget-window {
+      display: none; position: fixed; bottom: 90px; right: 20px;
+      width: 350px; height: 450px; background: white;
+      border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      flex-direction: column; overflow: hidden;
+    }
+    
+    #chat-header { background: #007bff; color: white; padding: 15px; font-weight: bold; }
+    #chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    
+    .msg { padding: 8px 12px; border-radius: 8px; max-width: 80%; word-break: break-word; }
+    .user { background: #e3f2fd; align-self: flex-end; }
+    .bot { background: #f1f1f1; align-self: flex-start; }
+    
+    #chat-input-container { display: flex; border-top: 1px solid #ddd; }
+    #chat-input { flex: 1; border: none; padding: 10px; outline: none; }
+    #chat-send { background: #007bff; color: white; border: none; padding: 10px 15px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <h1>Bienvenido a la Inmobiliaria</h1>
+  <p>Explora nuestras propiedades disponibles.</p>
+
+  <!-- Widget Flotante -->
+  <button id="chat-widget-button" onclick="toggleChat()">💬</button>
+
+  <div id="chat-widget-window">
+    <div id="chat-header">Asistente Inmobiliario</div>
+    <div id="chat-messages"></div>
+    <div id="chat-input-container">
+      <input type="text" id="chat-input" placeholder="Escribe tu consulta..." onkeypress="handleKeyPress(event)">
+      <button id="chat-send" onclick="sendMessage()">Enviar</button>
+    </div>
+  </div>
+
+  <script>
+    // Identificador único por cliente para mantener el estado en SQLite
+    let threadId = localStorage.getItem("chat_thread_id") || "user_" + Math.random().toString(36).substring(7);
+    localStorage.setItem("chat_thread_id", threadId);
+
+    function toggleChat() {
+      const win = document.getElementById("chat-widget-window");
+      win.style.display = win.style.display === "flex" ? "none" : "flex";
+    }
+
+    function handleKeyPress(e) {
+      if (e.key === "Enter") sendMessage();
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("chat-input");
+      const text = input.value.trim();
+      if (!text) return;
+
+      appendMessage(text, "user");
+      input.value = "";
+
+      try {
+        const response = await fetch("http://localhost:8000/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ thread_id: threadId, message: text })
+        });
+        const data = await response.json();
+        appendMessage(data.response, "bot");
+      } catch (err) {
+        appendMessage("Error de conexión con el agente.", "bot");
+      }
+    }
+
+    function appendMessage(text, sender) {
+      const msgDiv = document.createElement("div");
+      msgDiv.className = `msg ${sender}`;
+      msgDiv.innerText = text;
+      const container = document.getElementById("chat-messages");
+      container.appendChild(msgDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+  </script>
+</body>
+</html>

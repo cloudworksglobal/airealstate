@@ -74,13 +74,16 @@
       input.value = "";
 
       try {
-        const response = await fetch("http://localhost:8000/chat", {
+        const response = await fetch("https://salt-scale-paid-dining.trycloudflare.com/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ thread_id: threadId, message: text })
         });
         const data = await response.json();
-        appendMessage(data.response, "bot");
+        
+        // Maneja la respuesta según el formato de tu backend
+        const botResponse = data.response || data.message || JSON.stringify(data);
+        appendMessage(botResponse, "bot");
       } catch (err) {
         appendMessage("Error de conexión con el agente.", "bot");
       }

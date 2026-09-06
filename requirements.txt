@@ -1,4 +1,4 @@
-﻿aiosqlite==0.22.1
+aiosqlite==0.22.1
 altair==6.2.2
 annotated-doc==0.0.5
 annotated-types==0.8.0

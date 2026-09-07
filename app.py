@@ -1,6 +1,44 @@
 import sqlite3
-import streamlit as st
+import importlib
+from contextlib import nullcontext
 from typing import Annotated, TypedDict
+
+try:
+    st = importlib.import_module("streamlit")
+except ModuleNotFoundError:
+    class _FallbackStreamlit:
+        class _ChatMessage:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        def __init__(self):
+            self.session_state = {}
+
+        def set_page_config(self, *args, **kwargs):
+            return None
+
+        def title(self, *args, **kwargs):
+            return None
+
+        def caption(self, *args, **kwargs):
+            return None
+
+        def chat_message(self, *args, **kwargs):
+            return self._ChatMessage()
+
+        def chat_input(self, *args, **kwargs):
+            return None
+
+        def write(self, *args, **kwargs):
+            return None
+
+    st = _FallbackStreamlit()
 
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage

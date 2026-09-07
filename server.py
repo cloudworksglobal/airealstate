@@ -1,4 +1,5 @@
 import sqlite3
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,11 +19,13 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 @tool
 def buscar_propiedades(zona: str, presupuesto_max: int) -> str:
-    """Consulta el inventario inmobiliario según zona y presupuesto máximo."""
+    """Consulta el inventario inmobiliario según zona y presupuesto máximo en dólares."""
     inventario = [
         {"id": 101, "titulo": "Dpto 2 amb muy luminoso", "zona": "Palermo", "precio": 110000},
         {"id": 102, "titulo": "Casa con patio y cochera", "zona": "Belgrano", "precio": 240000},
         {"id": 103, "titulo": "Monoambiente moderno", "zona": "Palermo", "precio": 85000},
+        {"id": 104, "titulo": "Piso de categoría con balcón", "zona": "Recoleta", "precio": 310000},
+        {"id": 105, "titulo": "Dpto 1 amb a estrenar", "zona": "Caballito", "precio": 70000},
     ]
     resultados = [
         p for p in inventario 
@@ -38,18 +41,24 @@ class AgentState(TypedDict):
 
 def chatbot_node(state: AgentState):
     system_prompt = SystemMessage(
-        content="Sos un Agente Inmobiliario virtual. Atendé al cliente de forma breve y clara. "
-                "Cuando tengas zona y presupuesto, usá 'buscar_propiedades'."
+        content="Sos un Agente Inmobiliario virtual de CloudWorks Real Estate. Atendé al cliente de forma breve y profesional. "
+                "Cuando el cliente te dé la zona y su presupuesto máximo, ejecutá la herramienta 'buscar_propiedades'."
     )
-    return {"messages": [llm.invoke([system_prompt] + state["messages"])]}
+    # Concatenar el prompt de sistema con la lista de mensajes acumulados
+    full_messages = [system_prompt] + state["messages"]
+    response = llm.invoke(full_messages)
+    return {"messages": [response]}
 
+# Construcción del Flujo de LangGraph
 workflow = StateGraph(AgentState)
 workflow.add_node("chatbot", chatbot_node)
 workflow.add_node("tools", ToolNode(tools))
+
 workflow.add_edge(START, "chatbot")
 workflow.add_conditional_edges("chatbot", tools_condition)
 workflow.add_edge("tools", "chatbot")
 
+# Persistencia en base de datos SQLite local
 conn = sqlite3.connect("agente_memoria.db", check_same_thread=False)
 memory = SqliteSaver(conn)
 agent_app = workflow.compile(checkpointer=memory)
@@ -60,7 +69,6 @@ agent_app = workflow.compile(checkpointer=memory)
 
 app = FastAPI(title="Agente Inmobiliario API")
 
-# Habilitar CORS para permitir llamadas desde el frontend web
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -78,14 +86,20 @@ class ChatResponse(BaseModel):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
-    config = {"configurable": {"thread_id": req.thread_id}}
-    input_message = HumanMessage(content=req.message)
-    
-    output = agent_app.invoke({"messages": [input_message]}, config=config)
-    last_message = output["messages"][-1].content
-    
-    return ChatResponse(response=last_message)
+    try:
+        config = {"configurable": {"thread_id": req.thread_id}}
+        input_message = HumanMessage(content=req.message)
+        
+        output = agent_app.invoke({"messages": [input_message]}, config=config)
+        
+        # Extraer el último mensaje generado por el bot
+        last_msg = output["messages"][-1].content
+        if isinstance(last_msg, list):
+            last_msg = str(last_msg[0]) if last_msg else ""
+            
+        return ChatResponse(response=str(last_msg))
+    except Exception as e:
+        return ChatResponse(response=f"Error en el servidor: {str(e)}")
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

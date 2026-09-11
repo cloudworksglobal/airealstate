@@ -145,7 +145,7 @@ app.add_middleware(
 )
 
 class ChatRequest(BaseModel):
-    thread_id: str
+    thread_id: Optional[str] = "default_session"
     message: str
 
 class ChatResponse(BaseModel):
@@ -155,7 +155,8 @@ class ChatResponse(BaseModel):
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
     try:
-        config = {"configurable": {"thread_id": req.thread_id}}
+        thread_id = req.thread_id or "default_session"
+        config = {"configurable": {"thread_id": thread_id}}
         input_message = HumanMessage(content=req.message)
         
         output = agent_app.invoke({"messages": [input_message]}, config=config)
@@ -182,7 +183,7 @@ async def chat_endpoint(req: ChatRequest):
                     plazo_mudanza=coalesce(EXCLUDED.plazo_mudanza, leads.plazo_mudanza),
                     score=coalesce(EXCLUDED.score, leads.score)
             """, (
-                req.thread_id,
+                thread_id,
                 lead_data.get("nombre"),
                 lead_data.get("telefono"),
                 lead_data.get("zona"),
